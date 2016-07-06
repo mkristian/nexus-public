@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
-import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Attributes.Name;
 import java.util.jar.Manifest;
@@ -38,7 +37,7 @@ import org.sonatype.nexus.guice.NexusModules.CoreModule;
 import org.sonatype.nexus.log.LogManager;
 import org.sonatype.nexus.util.LockFile;
 import org.sonatype.nexus.util.file.DirSupport;
-import org.sonatype.plugins.model.PluginMetadata;
+import org.sonatype.nexus.webapp.osgi.WebappActivator;
 
 import aQute.bnd.osgi.Jar;
 import com.google.common.base.Throwables;
@@ -53,10 +52,12 @@ import org.eclipse.sisu.space.BeanScanning;
 import org.eclipse.sisu.space.ClassSpace;
 import org.eclipse.sisu.space.URLClassSpace;
 import org.eclipse.sisu.wire.WireModule;
+import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.launch.Framework;
 import org.osgi.framework.launch.FrameworkFactory;
+import org.osgi.framework.wiring.BundleWiring;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,7 +131,9 @@ public class WebappBootstrap
 
       properties.put(Constants.FRAMEWORK_STORAGE, workDir + "/felix-cache");
       properties.put(Constants.FRAMEWORK_STORAGE_CLEAN, Constants.FRAMEWORK_STORAGE_CLEAN_ONFIRSTINIT);
-      properties.put(Constants.FRAMEWORK_BUNDLE_PARENT, Constants.FRAMEWORK_BUNDLE_PARENT_FRAMEWORK);
+      properties.put(Constants.FRAMEWORK_BUNDLE_PARENT, Constants.FRAMEWORK_BUNDLE_PARENT_BOOT);
+
+      // properties.put(Constants.FRAMEWORK_BUNDLE_PARENT, Constants.FRAMEWORK_BUNDLE_PARENT_FRAMEWORK);
       //properties.put(Constants.FRAMEWORK_BOOTDELEGATION, "*");
 
       framework = ServiceLoader.load(FrameworkFactory.class).iterator().next().newFramework(properties);
@@ -141,7 +144,8 @@ public class WebappBootstrap
       // auto-install nexus-core
       File appDir = new File(properties.get("nexus-app"));
       createNexusCoreManifest(appDir);
-      framework.getBundleContext().installBundle("reference:" + appDir.toURI()).start();
+      Bundle coreBundle = framework.getBundleContext().installBundle("reference:" + appDir.toURI());
+      coreBundle.start();
 
       File[] bundles = new File(properties.get("nexus-app") + "/bundles").listFiles();
 
@@ -205,9 +209,11 @@ public class WebappBootstrap
     attributes.putValue(Constants.BUNDLE_MANIFESTVERSION, "2");
     attributes.putValue(Constants.BUNDLE_SYMBOLICNAME, "org.sonatype.nexus.plugin-api");
     attributes.putValue(Constants.BUNDLE_VERSION, "1.0");
+    attributes.putValue(Constants.BUNDLE_ACTIVATOR, WebappActivator.class.getName());
     try {
-      List<File> libFiles = listJars(new File(webInfDir, "lib"));
-      attributes.putValue(Constants.BUNDLE_CLASSPATH, getBundleClassPath(libFiles));
+      List<File> libFiles = listJars(new File(webInfDir, "lib")); // WEB-INF/lib
+      libFiles.addAll(listJars(new File(webInfDir, "../../lib"))); // Jetty/lib
+      attributes.putValue(Constants.BUNDLE_CLASSPATH, getBundleClassPath(webInfDir, libFiles));
       attributes.putValue(Constants.EXPORT_PACKAGE, getExportedPackages(libFiles));
       File manifestFile = new File(webInfDir, "META-INF/MANIFEST.MF");
       manifestFile.getParentFile().mkdirs();
@@ -232,11 +238,15 @@ public class WebappBootstrap
     return result;
   }
 
-  private String getBundleClassPath(final List<File> libFiles) throws IOException {
+  private String getBundleClassPath(final File webInfDir, final List<File> libFiles) throws IOException {
     StringBuilder buf = new StringBuilder();
     buf.append("classes");
     for (File libFile : libFiles) {
-      buf.append(",lib/").append(libFile.getName());
+      String relative = webInfDir.toURI().relativize(libFile.toURI()).getPath();
+      if (relative.startsWith(webInfDir.toURI().getPath())) {
+        relative = relative.substring(webInfDir.toURI().getPath().length());
+      }
+      buf.append(",").append(relative);
     }
     return buf.toString();
   }
