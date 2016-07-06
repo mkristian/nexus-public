@@ -12,9 +12,19 @@
  */
 package org.sonatype.nexus.webapp;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.jar.Attributes;
+import java.util.jar.Attributes.Name;
+import java.util.jar.Manifest;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
@@ -28,7 +38,9 @@ import org.sonatype.nexus.guice.NexusModules.CoreModule;
 import org.sonatype.nexus.log.LogManager;
 import org.sonatype.nexus.util.LockFile;
 import org.sonatype.nexus.util.file.DirSupport;
+import org.sonatype.plugins.model.PluginMetadata;
 
+import aQute.bnd.osgi.Jar;
 import com.google.common.base.Throwables;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -119,12 +131,17 @@ public class WebappBootstrap
       properties.put(Constants.FRAMEWORK_STORAGE, workDir + "/felix-cache");
       properties.put(Constants.FRAMEWORK_STORAGE_CLEAN, Constants.FRAMEWORK_STORAGE_CLEAN_ONFIRSTINIT);
       properties.put(Constants.FRAMEWORK_BUNDLE_PARENT, Constants.FRAMEWORK_BUNDLE_PARENT_FRAMEWORK);
-      properties.put(Constants.FRAMEWORK_BOOTDELEGATION, "*");
+      //properties.put(Constants.FRAMEWORK_BOOTDELEGATION, "*");
 
       framework = ServiceLoader.load(FrameworkFactory.class).iterator().next().newFramework(properties);
 
       framework.init();
       framework.start();
+
+      // auto-install nexus-core
+      File appDir = new File(properties.get("nexus-app"));
+      createNexusCoreManifest(appDir);
+      framework.getBundleContext().installBundle("reference:" + appDir.toURI()).start();
 
       File[] bundles = new File(properties.get("nexus-app") + "/bundles").listFiles();
 
@@ -148,7 +165,7 @@ public class WebappBootstrap
               new CoreModule(context, properties, framework),
               new PlexusSpaceModule(coreSpace, BeanScanning.INDEX)));
       log.debug("Injector: {}", injector);
-      
+
       container = injector.getInstance(PlexusContainer.class);
       context.setAttribute(PlexusConstants.PLEXUS_KEY, container);
       injector.getInstance(Context.class).put(PlexusConstants.PLEXUS_KEY, container);
@@ -179,6 +196,70 @@ public class WebappBootstrap
     if (!properties.containsKey(name)) {
       throw new IllegalStateException("Missing required property: " + name);
     }
+  }
+
+  private File createNexusCoreManifest(final File webInfDir) {
+    Manifest manifest = new Manifest();
+    Attributes attributes = manifest.getMainAttributes();
+    attributes.put(Name.MANIFEST_VERSION, "1.0");
+    attributes.putValue(Constants.BUNDLE_MANIFESTVERSION, "2");
+    attributes.putValue(Constants.BUNDLE_SYMBOLICNAME, "org.sonatype.nexus.plugin-api");
+    attributes.putValue(Constants.BUNDLE_VERSION, "1.0");
+    try {
+      List<File> libFiles = listJars(new File(webInfDir, "lib"));
+      attributes.putValue(Constants.BUNDLE_CLASSPATH, getBundleClassPath(libFiles));
+      attributes.putValue(Constants.EXPORT_PACKAGE, getExportedPackages(libFiles));
+      File manifestFile = new File(webInfDir, "META-INF/MANIFEST.MF");
+      manifestFile.getParentFile().mkdirs();
+      try (OutputStream output = new BufferedOutputStream(new FileOutputStream(manifestFile))) {
+        manifest.write(output);
+      }
+      return manifestFile;
+    }
+    catch (IOException e) {
+      throw Throwables.propagate(e);
+    }
+  }
+
+  private List<File> listJars(final File directory) {
+    File[] files = directory.listFiles();
+    ArrayList<File> result = new ArrayList<>();
+    for (File file : files) {
+      if (file.getName().endsWith(".jar")) {
+        result.add(file);
+      }
+    }
+    return result;
+  }
+
+  private String getBundleClassPath(final List<File> libFiles) throws IOException {
+    StringBuilder buf = new StringBuilder();
+    buf.append("classes");
+    for (File libFile : libFiles) {
+      buf.append(",lib/").append(libFile.getName());
+    }
+    return buf.toString();
+  }
+
+  private String getExportedPackages(final List<File> libFiles) throws IOException {
+    StringBuilder buf = new StringBuilder();
+    for (File libFile : libFiles) {
+      try (Jar jar = new Jar(libFile)) {
+        for (String pkg : jar.getPackages()) {
+          if (pkg.length() > 0 &&
+              !pkg.startsWith("META") &&
+              !pkg.startsWith("OSGI") &&
+              !pkg.startsWith("docs") &&
+              !pkg.startsWith("static")) {
+            if (buf.length() > 0) {
+              buf.append(',');
+            }
+            buf.append(pkg);
+          }
+        }
+      }
+    }
+    return buf.toString();
   }
 
   @Override
