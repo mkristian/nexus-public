@@ -29,7 +29,7 @@ public enum FileType
   MAVEN_METADATA_SNAPSHOT("application/xml", "utf-8", true),
   POM("application/xml", "utf-8", true),
   SPECS_INDEX("application/octet-stream", true),
-  SPECS_INDEX_ZIPPED("application/gzip", true),
+  SPECS_INDEX_ZIPPED("application/x-gzip", true),
   DIRECTORY("text/html", "utf-8"),
   BUNDLER_API("application/octet-stream", true),
   API_V1("text/plain", "ASCII"), // for the api_key
