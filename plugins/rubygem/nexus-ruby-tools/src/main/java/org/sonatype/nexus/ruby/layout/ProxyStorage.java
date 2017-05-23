@@ -14,6 +14,7 @@ package org.sonatype.nexus.ruby.layout;
 
 import org.sonatype.nexus.ruby.BundlerApiFile;
 import org.sonatype.nexus.ruby.DependencyFile;
+import org.sonatype.nexus.ruby.RubygemsFile;
 
 public interface ProxyStorage
     extends Storage
@@ -30,4 +31,9 @@ public interface ProxyStorage
    * (when they come from https://rubygems.org).
    */
   boolean isExpired(DependencyFile file);
+
+  /**
+   * expire the given file now, i.e. set the last modified timestamp to 0
+   */
+  void expireNow(RubygemsFile file);
 }

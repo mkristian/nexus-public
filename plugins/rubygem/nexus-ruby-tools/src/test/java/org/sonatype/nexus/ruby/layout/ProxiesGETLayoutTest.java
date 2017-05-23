@@ -73,6 +73,7 @@ public class ProxiesGETLayoutTest
   }
 
   private final DefaultRubygemsFileSystem fileSystem;
+  private boolean isProxy;
 
   public ProxiesGETLayoutTest(Storage store) {
     if (store instanceof CachingProxyStorage) {
@@ -80,6 +81,7 @@ public class ProxiesGETLayoutTest
           new ProxiedGETLayout(rubygemsGateway(),
               (CachingProxyStorage) store),
           null, null);
+      isProxy = true;
     }
     else {
       fileSystem = new DefaultRubygemsFileSystem(new GETLayout(rubygemsGateway(),
@@ -94,7 +96,7 @@ public class ProxiesGETLayoutTest
         }
 
       }, null, null);
-
+      isProxy = false;
     }
   }
 
@@ -288,6 +290,15 @@ public class ProxiesGETLayoutTest
   public void testGemspec() throws Exception {
     String[] pathes = {"/quick/Marshal.4.8/zip-2.0.2.gemspec.rz", "/quick/Marshal.4.8/z/zip-2.0.2.gemspec.rz"};
     assertFiletypeWithPayload(pathes, FileType.GEMSPEC, URLStreamLocation.class);
+  }
+
+  @Test
+  public void testGemspecCreated() throws Exception {
+    util.resolveFile("target/proxy/quick/Marshal.4.8/m/my-0.1.0-java.gemspec.rz").delete();
+    String[] pathes = {"/quick/Marshal.4.8/my-0.1.0-java.gemspec.rz", "/quick/Marshal.4.8/m/my-0.1.0-java.gemspec.rz"};
+    if (isProxy) {
+      assertFiletypeWithPayload(pathes, FileType.GEMSPEC, URLStreamLocation.class);
+    }
   }
 
   @Test

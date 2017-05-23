@@ -202,4 +202,9 @@ public class CachingProxyStorage
   protected URLStreamLocation toUrl(RubygemsFile file) throws MalformedURLException {
     return new URLStreamLocation(new URL(baseurl + file.remotePath()));
   }
+
+  @Override
+  public void expireNow(RubygemsFile file) {
+    toPath(file).toFile().setLastModified(0);
+  }
 }

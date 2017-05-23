@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.google.common.base.Throwables;
 import org.sonatype.nexus.proxy.AccessDeniedException;
 import org.sonatype.nexus.proxy.IllegalOperationException;
 import org.sonatype.nexus.proxy.ItemNotFoundException;
@@ -198,5 +199,23 @@ public class NexusStorage
       // the return is still an empty array but the exception gets propagated
     }
     return result.toArray(new String[result.size()]);
+  }
+
+  public void expireNow(RubygemsFile file) {
+    try {
+      ResourceStoreRequest request = new ResourceStoreRequest(file.storagePath(), true, false);
+      if (repository.getLocalStorage().containsItem(repository, request)) {
+        StorageItem item = repository.getLocalStorage().retrieveItem(repository, request);
+        item.setExpired(true);
+        repository.getAttributesHandler().storeAttributes(item);
+      }
+    }
+    catch (ItemNotFoundException e) {
+      // ignore
+    }
+    catch (IOException e) {
+      throw Throwables.propagate(e);
+    }
+    log.debug("expired :: {}", file);
   }
 }

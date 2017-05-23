@@ -15,6 +15,9 @@ package org.sonatype.nexus.testsuite.ruby;
 import java.io.File;
 import java.io.IOException;
 
+import org.sonatype.nexus.client.core.NexusClient;
+import org.sonatype.nexus.client.core.exception.NexusClientException;
+import org.sonatype.nexus.client.core.subsystem.content.Location;
 import org.sonatype.nexus.ruby.client.RubyProxyRepository;
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
@@ -99,13 +102,31 @@ public class GemLifecycleIT
       doTestRebuildRubygemsMetadata();
     }
     else if (repoId.equals(GEMSPROXY)) {
-      doTestPurgeBrokenFiles();
+       loadCreatedGemspecRz("quick/Marshal.4.8/w/win-2-x86-mswin32-60.gemspec.rz", "gems/win-2-x86-mswin32-60.gem");
+       doTestPurgeBrokenFiles();
     }
 
     // just cleanup remaining gems on hosted
     assertFileRemoval(GEMSHOST, "gems/" + winGem.getName(), is(true));
 
     log("== END {}", repoId);
+  }
+
+  private void loadCreatedGemspecRz(String gemspecname, String gemname) throws IOException {
+    downloadFile(GEMSPROXY, gemname);
+    File storage = new File(nexus().getWorkDirectory(), "storage/" + GEMSPROXY );
+    File gemspec = new File(storage, gemspecname);
+    gemspec.delete();
+    assertThat("ensure there is no gemspec rz file", gemspec.exists(), is(false));
+    repositories().get(GEMSHOST).putOutOfService();
+    try {
+      assertThat("create gemspec file exists", downloadFile(GEMSPROXY, gemspecname).length(), equalTo(259l));
+      assertThat("gemspec file exists", gemspec.exists(), is(true));
+    }
+    finally {
+      repositories().get(GEMSHOST).putInService();
+      repositories().get(RubyProxyRepository.class, GEMSPROXY).unblock();
+    }
   }
 
   private void doTestPurgeBrokenFiles() throws InterruptedException, IOException {

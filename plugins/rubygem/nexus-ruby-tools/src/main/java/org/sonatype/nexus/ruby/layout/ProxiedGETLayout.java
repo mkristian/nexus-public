@@ -20,6 +20,9 @@ import java.util.List;
 import org.sonatype.nexus.ruby.BundlerApiFile;
 import org.sonatype.nexus.ruby.DependencyFile;
 import org.sonatype.nexus.ruby.DependencyHelper;
+import org.sonatype.nexus.ruby.GemFile;
+import org.sonatype.nexus.ruby.GemspecFile;
+import org.sonatype.nexus.ruby.GemspecHelper;
 import org.sonatype.nexus.ruby.RubygemsGateway;
 
 public class ProxiedGETLayout
@@ -30,6 +33,41 @@ public class ProxiedGETLayout
   public ProxiedGETLayout(RubygemsGateway gateway, ProxyStorage store) {
     super(gateway, store);
     this.store = store;
+  }
+
+  private void maybeCreate(GemspecFile gemspec) {
+    if (gemspec.notExists() || gemspec.hasException()) {
+      Exception exp = gemspec.getException();
+      GemFile gem = gemspec.gem();
+      store.retrieve(gem);
+      if (gem.exists()) {
+        try {
+          GemspecHelper helper = gateway.newGemspecHelperFromGem(store.getInputStream(gem));
+          store.update(helper.getRzInputStream(), gemspec);
+          store.expireNow(gemspec);
+        }
+        catch (IOException e) {
+          // in this case we stick to the original error of the gemspec file
+          if (exp != null) {
+            gemspec.setException(exp);
+          }
+        }
+      }
+    }
+  }
+
+  @Override
+  public GemspecFile gemspecFile(String name, String version, String platform) {
+    GemspecFile gemspec = super.gemspecFile(name, version, platform);
+    maybeCreate(gemspec);
+    return gemspec;
+  }
+
+  @Override
+  public GemspecFile gemspecFile(String filename) {
+    GemspecFile gemspec = super.gemspecFile(filename);
+    maybeCreate(gemspec);
+    return gemspec;
   }
 
   @Override
