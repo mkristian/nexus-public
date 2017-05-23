@@ -13,6 +13,7 @@
 
 require 'nexus/rubygems_helper'
 require 'maven/tools/pom'
+require 'rubygems/package'
 
 java_import org.sonatype.nexus.ruby.GemspecHelper
 
