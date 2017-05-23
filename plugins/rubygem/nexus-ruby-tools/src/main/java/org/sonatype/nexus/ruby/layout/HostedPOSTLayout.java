@@ -77,7 +77,7 @@ public class HostedPOSTLayout
           if (!(((GemFile) file).filename() + ".gem").equals(spec.filename())) {
             store.delete(file);
             // now set the error for further processing
-            file.setException(new IOException("filename from " + file + " does not match gemname: " + spec.filename()));
+            file.setException(new IOException("filename " + file.name() + " does not match gemname: " + spec.filename()));
             return;
           }
           break;
