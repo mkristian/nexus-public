@@ -63,8 +63,10 @@ describe Nexus::RepairHelperImpl do
     # this includes all the default gems from jruby
     # and also includes all the gems coming from maven-tools dependency !!
     # i.e. a new jruby.version can change that number !!
-    # puts Dir[ File.join( broken_to, 'quick', '**', '*' ) ].join("\n")
-    Dir[ File.join( broken_to, 'quick', '**', '*' ) ].size.must_equal 32
+
+    #puts Dir[ File.join( broken_to, 'quick', '**', '*' ) ].join("\n")
+
+    Dir[ File.join( broken_to, 'quick', '**', '*' ) ].size.must_equal 33
   end
 
 end

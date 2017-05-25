@@ -49,7 +49,7 @@ module Nexus
       super
     end
     
-    def build_marshal_gemspecs
+    def build_marshal_gemspecs(*args)
       count = Gem::Specification.count { |s| not s.default_gem? }
       progress = ui.progress_reporter( count,
                                        "Generating Marshal quick index gemspecs for #{count} gems",
